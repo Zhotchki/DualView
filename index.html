@@ -49,7 +49,14 @@ header strong{flex:1}
   color:#111
 }
 
-.btn:disabled{opacity:.45}
+.btn.active{
+  background:#fff;
+  color:#111
+}
+
+.btn:disabled{
+  opacity:.45
+}
 
 .grid{
   display:grid;
@@ -161,16 +168,12 @@ header strong{flex:1}
   font-size:13px
 }
 
-.hidden{display:none!important}
+.hidden{
+  display:none!important
+}
 
 .single .pane:not(.active){
   display:none
-}
-
-.channel-row{
-  display:grid;
-  grid-template-columns:1fr;
-  gap:7px
 }
 
 .search{
@@ -183,8 +186,20 @@ header strong{flex:1}
   width:100%
 }
 
+.audioBar{
+  display:flex;
+  gap:8px;
+  padding:6px 12px 10px
+}
+
+.audioBar .btn{
+  flex:1
+}
+
 @media (orientation:landscape){
-  header{padding:6px 10px}
+  header{
+    padding:6px 10px
+  }
 
   .setup{
     grid-template-columns:1fr 1fr;
@@ -197,7 +212,7 @@ header strong{flex:1}
 
   .grid{
     grid-template-columns:1fr 1fr;
-    height:calc(100dvh - 54px)
+    height:calc(100dvh - 108px)
   }
 
   .pane,
@@ -215,10 +230,6 @@ header strong{flex:1}
   .grid{
     grid-template-columns:1fr 1fr
   }
-
-  .channel-row{
-    grid-template-columns:1fr 1fr
-  }
 }
 </style>
 </head>
@@ -228,15 +239,19 @@ header strong{flex:1}
 <header>
   <strong>
     DualView
-    <span style="font-size:12px;color:#9ca4ad">v2.1</span>
+    <span style="font-size:12px;color:#9ca4ad">v2.2</span>
   </strong>
 
   <button class="btn" id="swap" type="button">Swap</button>
   <button class="btn" id="setupBtn" type="button">Channels</button>
-  <button class="btn primary" id="playBoth" type="button" disabled>
-    Play both
-  </button>
+  <button class="btn primary" id="playBoth" type="button" disabled>Play both</button>
 </header>
+
+<div class="audioBar">
+  <button class="btn active" id="muteAll" type="button">Muted</button>
+  <button class="btn" id="audio1" type="button">Audio 1</button>
+  <button class="btn" id="audio2" type="button">Audio 2</button>
+</div>
 
 <section class="setup" id="setup">
 
@@ -265,10 +280,9 @@ header strong{flex:1}
     </div>
 
     <div class="hint">
-      Your playlist address stays in this browser on this device.
-      Do not share it publicly.
-      DualView imports the M3U channel list through your private proxy
-      and plays the selected streams.
+      Your playlist address stays on this device.
+      DualView imports your channel list through the Cloudflare proxy.
+      For dual playback, both streams start muted first.
     </div>
 
     <div
@@ -352,30 +366,15 @@ header strong{flex:1}
     <video
       id="v1"
       playsinline
+      muted
       controls
-      preload="metadata">
+      preload="auto">
     </video>
 
-    <span class="badge" id="badge1">
-      GAME 1
-    </span>
+    <span class="badge" id="badge1">GAME 1</span>
 
     <div class="controls">
-
-      <button
-        class="btn"
-        data-mute="1"
-        type="button">
-        Mute
-      </button>
-
-      <button
-        class="btn"
-        data-max="1"
-        type="button">
-        Maximize
-      </button>
-
+      <button class="btn" data-max="1" type="button">Maximize</button>
     </div>
 
   </section>
@@ -386,30 +385,15 @@ header strong{flex:1}
     <video
       id="v2"
       playsinline
+      muted
       controls
-      preload="metadata">
+      preload="auto">
     </video>
 
-    <span class="badge" id="badge2">
-      GAME 2
-    </span>
+    <span class="badge" id="badge2">GAME 2</span>
 
     <div class="controls">
-
-      <button
-        class="btn"
-        data-mute="2"
-        type="button">
-        Mute
-      </button>
-
-      <button
-        class="btn"
-        data-max="2"
-        type="button">
-        Maximize
-      </button>
-
+      <button class="btn" data-max="2" type="button">Maximize</button>
     </div>
 
   </section>
@@ -452,6 +436,10 @@ header strong{flex:1}
   const status = $('#status');
   const playBoth = $('#playBoth');
 
+  const muteAll = $('#muteAll');
+  const audio1 = $('#audio1');
+  const audio2 = $('#audio2');
+
   let channels = [];
 
 
@@ -487,7 +475,6 @@ header strong{flex:1}
       text.replace(/\r/g,'').split('\n');
 
     const out = [];
-
     let meta = null;
 
     for(const raw of lines){
@@ -498,11 +485,9 @@ header strong{flex:1}
         continue;
       }
 
-
       if(line.startsWith('#EXTINF:')){
 
-        const comma =
-          line.lastIndexOf(',');
+        const comma = line.lastIndexOf(',');
 
         const name =
           (
@@ -511,22 +496,15 @@ header strong{flex:1}
               : 'Channel'
           ).trim() || 'Channel';
 
-
         const group =
           (
-            line.match(
-              /group-title="([^"]*)"/i
-            ) || []
+            line.match(/group-title="([^"]*)"/i) || []
           )[1] || '';
-
 
         const logo =
           (
-            line.match(
-              /tvg-logo="([^"]*)"/i
-            ) || []
+            line.match(/tvg-logo="([^"]*)"/i) || []
           )[1] || '';
-
 
         meta = {
           name,
@@ -535,14 +513,12 @@ header strong{flex:1}
         };
       }
 
-
       else if(
         !line.startsWith('#') &&
         meta
       ){
 
-        const url =
-          safeUrl(line);
+        const url = safeUrl(line);
 
         if(url){
           out.push({
@@ -561,17 +537,11 @@ header strong{flex:1}
 
   function fill(i,query=''){
 
-    const sel =
-      selects[i];
-
-    const current =
-      sel.value;
-
-    const q =
-      query.trim().toLowerCase();
+    const sel = selects[i];
+    const current = sel.value;
+    const q = query.trim().toLowerCase();
 
     sel.innerHTML = '';
-
 
     const filtered =
       channels.filter(
@@ -585,7 +555,6 @@ header strong{flex:1}
           .toLowerCase()
           .includes(q)
       );
-
 
     if(!filtered.length){
 
@@ -601,7 +570,6 @@ header strong{flex:1}
 
       return;
     }
-
 
     filtered.forEach(c=>{
 
@@ -625,7 +593,6 @@ header strong{flex:1}
       sel.appendChild(option);
     });
 
-
     if(
       [...sel.options]
         .some(
@@ -647,7 +614,6 @@ header strong{flex:1}
           .trim()
       );
 
-
     if(!url){
 
       msg(
@@ -657,14 +623,11 @@ header strong{flex:1}
       return;
     }
 
-
-    $('#importBtn').disabled =
-      true;
+    $('#importBtn').disabled = true;
 
     msg(
       'Importing playlist…'
     );
-
 
     try{
 
@@ -677,7 +640,6 @@ header strong{flex:1}
           }
         );
 
-
       if(!response.ok){
 
         throw new Error(
@@ -686,14 +648,11 @@ header strong{flex:1}
         );
       }
 
-
       const text =
         await response.text();
 
-
       const parsed =
         parseM3U(text);
-
 
       if(!parsed.length){
 
@@ -702,10 +661,7 @@ header strong{flex:1}
         );
       }
 
-
-      channels =
-        parsed;
-
+      channels = parsed;
 
       for(
         let i = 1;
@@ -722,7 +678,6 @@ header strong{flex:1}
         fill(i,'');
       }
 
-
       $('#load1').disabled =
         false;
 
@@ -732,7 +687,6 @@ header strong{flex:1}
       playBoth.disabled =
         false;
 
-
       try{
         localStorage.setItem(
           'dualview_playlist_url',
@@ -741,14 +695,12 @@ header strong{flex:1}
       }
       catch{}
 
-
       msg(
         'Imported ' +
         channels.length +
         ' channels. Pick Game 1 and Game 2.'
       );
     }
-
 
     catch(error){
 
@@ -758,7 +710,6 @@ header strong{flex:1}
         'Playlist import failed. Check the playlist address and try again.'
       );
     }
-
 
     finally{
 
@@ -774,13 +725,10 @@ header strong{flex:1}
       selects[i]
         .selectedOptions[0];
 
-
     return (
       option?.dataset?.name ||
       option?.textContent ||
-      (
-        'GAME ' + i
-      )
+      ('GAME ' + i)
     );
   }
 
@@ -790,7 +738,6 @@ header strong{flex:1}
     const url =
       selects[i].value;
 
-
     if(!url){
 
       msg(
@@ -799,19 +746,19 @@ header strong{flex:1}
         '.'
       );
 
-      return;
+      return false;
     }
 
+    v[i].pause();
 
-    v[i].src =
-      url;
+    v[i].muted = true;
+
+    v[i].src = url;
 
     v[i].load();
 
-
     badges[i].textContent =
       selectedName(i);
-
 
     msg(
       'Game ' +
@@ -819,6 +766,56 @@ header strong{flex:1}
       ' loaded: ' +
       selectedName(i)
     );
+
+    return true;
+  }
+
+
+  function setAudio(mode){
+
+    v[1].muted = true;
+    v[2].muted = true;
+
+    muteAll.classList.remove('active');
+    audio1.classList.remove('active');
+    audio2.classList.remove('active');
+
+    if(mode === 1){
+
+      v[1].muted = false;
+
+      audio1.classList.add('active');
+    }
+
+    else if(mode === 2){
+
+      v[2].muted = false;
+
+      audio2.classList.add('active');
+    }
+
+    else{
+
+      muteAll.classList.add('active');
+    }
+  }
+
+
+  async function tryPlay(video){
+
+    try{
+
+      await video.play();
+
+      return true;
+    }
+
+    catch(error){
+
+      console.warn(error);
+
+      return false;
+    }
   }
 
 
@@ -866,73 +863,95 @@ header strong{flex:1}
       async()=>{
 
         if(!v[1].src){
-          load(1);
+          if(!load(1)){
+            return;
+          }
         }
 
         if(!v[2].src){
-          load(2);
+          if(!load(2)){
+            return;
+          }
         }
 
+        v[1].muted = true;
+        v[2].muted = true;
+
+        setAudio(0);
 
         document.body
           .classList
           .add('player');
 
+        msg(
+          'Starting both streams…'
+        );
 
-        let ok = 0;
+        const results =
+          await Promise.all([
+            tryPlay(v[1]),
+            tryPlay(v[2])
+          ]);
 
+        const count =
+          results.filter(Boolean).length;
 
-        for(
-          let i = 1;
-          i <= 2;
-          i++
-        ){
+        if(count === 2){
 
-          try{
-
-            await v[i].play();
-
-            ok++;
-          }
-
-          catch(error){
-
-            console.warn(error);
-          }
+          msg(
+            'Both streams are playing. Choose Audio 1 or Audio 2.'
+          );
         }
 
+        else if(count === 1){
 
-        msg(
-          ok === 2
-            ? 'Both streams are playing.'
-            : 'iOS blocked one or both starts. Tap Play on each video once, then tap Play both again.'
-        );
+          msg(
+            'Only one stream started. Tap Play directly on the stopped video once.'
+          );
+        }
+
+        else{
+
+          msg(
+            'iOS blocked both starts. Tap Play on each video once, then tap Play both again.'
+          );
+        }
       }
     );
 
 
-  document
-    .querySelectorAll(
-      '[data-mute]'
-    )
-    .forEach(
-      button =>
-        button.addEventListener(
-          'click',
-          ()=>{
+  muteAll
+    .addEventListener(
+      'click',
+      ()=>setAudio(0)
+    );
 
-            const i =
-              +button.dataset.mute;
 
-            v[i].muted =
-              !v[i].muted;
+  audio1
+    .addEventListener(
+      'click',
+      async()=>{
 
-            button.textContent =
-              v[i].muted
-                ? 'Unmute'
-                : 'Mute';
-          }
-        )
+        if(v[1].paused){
+          await tryPlay(v[1]);
+        }
+
+        setAudio(1);
+      }
+    );
+
+
+  audio2
+    .addEventListener(
+      'click',
+      async()=>{
+
+        if(v[2].paused){
+          await tryPlay(v[2]);
+        }
+
+        setAudio(2);
+      }
     );
 
 
@@ -956,10 +975,8 @@ header strong{flex:1}
                 '"]'
               );
 
-
             grid.classList
               .toggle('single');
-
 
             document
               .querySelectorAll(
@@ -971,10 +988,8 @@ header strong{flex:1}
                     .remove('active')
               );
 
-
             pane.classList
               .add('active');
-
 
             button.textContent =
               grid.classList
@@ -1037,7 +1052,7 @@ header strong{flex:1}
         ()=>msg(
           'Game ' +
           i +
-          ' could not load. Try another channel or re-import the playlist.'
+          ' could not load. Try another channel.'
         )
       );
   }
@@ -1056,6 +1071,7 @@ header strong{flex:1}
         saved;
     }
   }
+
   catch{}
 
 
